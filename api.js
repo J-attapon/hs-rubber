@@ -22,7 +22,7 @@
   if (!value) return '';
 
   // ถ้ากรอก Gmail เต็มมาแล้ว ให้ใช้เลย
-  if (value.includes('jacsohit@')) {
+  if (value.includes('jacsohit@gmail.com')) {
     return value;
   }
 
@@ -142,21 +142,42 @@
   }
 
   const methods = {
-    async loginBootstrap(username, password, date) {
-      const c = mustDb();
-      const { data, error } = await c.auth.signInWithPassword({
-        email: emailFor(username),
-        password: String(password || '')
-      });
-      if (error || !data?.user) throw new Error('Username หรือ Password ไม่ถูกต้อง');
+  async loginBootstrap(username, password, date) {
+  const c = mustDb();
 
-      const { error: upErr } = await c
-        .from('profiles')
-        .update({ last_login: new Date().toISOString() })
-        .eq('id', data.user.id);
-      if (upErr) console.warn('last_login update:', upErr.message);
-      return bootstrap(date);
-    },
+  const loginEmail = emailFor(username);
+
+  console.log('Login email:', loginEmail);
+
+  const { data, error } = await c.auth.signInWithPassword({
+    email: loginEmail,
+    password: String(password || '')
+  });
+
+  if (error || !data?.user) {
+    console.error('Supabase Login Error:', {
+      email: loginEmail,
+      code: error?.code,
+      message: error?.message,
+      status: error?.status
+    });
+
+    throw new Error(
+      error?.message || 'Username หรือ Password ไม่ถูกต้อง'
+    );
+  }
+
+  const { error: upErr } = await c
+    .from('profiles')
+    .update({ last_login: new Date().toISOString() })
+    .eq('id', data.user.id);
+
+  if (upErr) {
+    console.warn('last_login update:', upErr.message);
+  }
+
+  return bootstrap(date);
+}
 
     async getBootstrapData(_token, date) {
       return bootstrap(date);
