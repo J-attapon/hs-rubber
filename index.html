@@ -4,6 +4,48 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta charset="UTF-8">
   <style>
+    <style>
+  .hero-logo{
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 25px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.18);
+    overflow: hidden;
+    padding: 8px;
+  }
+
+  .hero-logo img{
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  .leaf{
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 4px;
+    transform: none;
+  }
+
+  .leaf img{
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+</style>
     :root{--nav:#14263a;--nav2:#0e1d2d;--blue:#1688f8;--green:#2aaa48;--orange:#ff8400;--teal:#13aaa2;--red:#e2444d;--bg:#f5f7fa;--text:#172238;--muted:#718096;--line:#e4eaf0;--shadow:0 3px 16px rgba(30,48,68,.07)}
     *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:"Segoe UI","Noto Sans Thai",Tahoma,sans-serif;background:var(--bg);color:var(--text)}button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}
     .loading{position:fixed;inset:0;background:rgba(247,249,252,.78);backdrop-filter:blur(2px);z-index:500;display:grid;place-items:center}.loading-box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 20px;box-shadow:var(--shadow);display:flex;gap:11px;align-items:center;font-weight:700}.spinner{width:20px;height:20px;border-radius:50%;border:3px solid #dce5ed;border-top-color:var(--blue);animation:spin .75s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
@@ -36,7 +78,9 @@
 <div id="loading" class="loading hidden"><div class="loading-box"><div class="spinner"></div><span id="loadingText">กำลังโหลดระบบ...</span></div></div><div id="toast" class="toast"></div>
 
 <section id="loginScreen" class="login-screen">
-  <div class="login-hero"><div class="hero-content"><div class="hero-logo">LT</div><h1>ระบบรับ–ขายยาง<br>ประจำวัน</h1><p>บันทึกรับยาง ขายยาง ติดตามยอดคงเหลือ และดู Dashboard จาก PostgreSQL</p><div class="hero-badges"><span>Supabase</span><span>PostgreSQL</span><span>หลายผู้ใช้งาน</span><span>Audit Log</span></div></div></div>
+  <div class="login-hero"><div class="hero-content"><div class="hero-logo">
+  <img src="logo.png" alt="LTR Logo">
+</div><h1>ระบบรับ–ขายยาง<br>ประจำวัน</h1><p>บันทึกรับยาง ขายยาง ติดตามยอดคงเหลือ และดู Dashboard จาก PostgreSQL</p><div class="hero-badges"><span>Supabase</span><span>PostgreSQL</span><span>หลายผู้ใช้งาน</span><span>Audit Log</span></div></div></div>
   <div class="login-side"><form id="loginForm" class="login-card"><h2>เข้าสู่ระบบ</h2><p>กรอก Username และ Password</p><div class="login-field"><label>Username</label><input id="username" class="control" autocomplete="username" placeholder="เช่น admin" required></div><div class="login-field"><label>Password</label><div class="password-wrap"><input id="password" class="control" type="password" autocomplete="current-password" placeholder="Password" required><button id="showPassword" type="button" class="password-toggle">แสดง</button></div></div><button class="login-btn" type="submit">เข้าสู่ระบบ</button><div id="loginError" class="login-error hidden"></div><div class="login-note">ระบบภายใน L.T. Rubber • V7.1</div></form></div>
 </section>
 
