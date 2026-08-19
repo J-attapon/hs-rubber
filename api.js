@@ -1,4 +1,3 @@
-
 (() => {
   'use strict';
 
@@ -16,19 +15,15 @@
       })
     : null;
 
+  // รองรับทั้ง "jacsohit" และ "jacsohit@gmail.com"
   const emailFor = input => {
-  const value = String(input || '').trim().toLowerCase();
+    const value = String(input || '').trim().toLowerCase();
+    if (!value) return '';
+    if (value.includes('@')) return value;
+    const domain = String(cfg.AUTH_DOMAIN || 'gmail.com').trim().toLowerCase().replace(/^@+/, '');
+    return `${value}@${domain}`;
+  };
 
-  if (!value) return '';
-
-  // ถ้ากรอก Gmail เต็มมาแล้ว ให้ใช้เลย
-  if (value.includes('jacsohit@gmail.com')) {
-    return value;
-  }
-
-  // ถ้ากรอกเฉพาะ username จึงค่อยเติม domain
-  return `${value}@${cfg.AUTH_DOMAIN || 'gmail.com'}`;
-};
   const err = e => new Error(e?.message || String(e || 'Unknown error'));
 
   function mustDb() {
@@ -53,14 +48,18 @@
       .eq('id', authUser.id)
       .single();
     if (error) throw err(error);
-    if (!data?.active) {
+    if (!data) {
       await c.auth.signOut();
-      throw new Error('SESSION_EXPIRED');
+      throw new Error('ไม่พบข้อมูลผู้ใช้งานใน profiles');
+    }
+    if (!data.active) {
+      await c.auth.signOut();
+      throw new Error('บัญชีผู้ใช้งานถูกปิดใช้งาน');
     }
     return {
       username: data.username,
       displayName: data.display_name || data.username,
-      role: data.role,
+      role: data.role || 'user',
       active: !!data.active,
       lastLogin: data.last_login || ''
     };
@@ -95,14 +94,12 @@
     return normalizeDashboard(data);
   }
 
-  async function listUsers() {
-    const me = await profile();
-    if (me.role !== 'admin') return [];
+  async function listUsersKnownAdmin() {
     const c = mustDb();
     const { data, error } = await c
       .from('profiles')
       .select('username,display_name,role,active,last_login')
-      .order('username');
+      .order('username', { ascending: true });
     if (error) throw err(error);
     return (data || []).map(u => ({
       username: u.username,
@@ -113,18 +110,24 @@
     }));
   }
 
+  async function listUsers() {
+    const me = await profile();
+    if (me.role !== 'admin') return [];
+    return listUsersKnownAdmin();
+  }
+
   async function bootstrap(date) {
     const me = await profile();
     const [dash, users] = await Promise.all([
       dashboard(date),
-      me.role === 'admin' ? listUsers() : Promise.resolve([])
+      me.role === 'admin' ? listUsersKnownAdmin() : Promise.resolve([])
     ]);
     const { session } = await sessionUser();
     return {
       ok: true,
       token: session.access_token,
       user: me,
-      version: cfg.VERSION || '7.0.0',
+      version: cfg.VERSION || '7.1.0',
       grades: cfg.GRADES || [],
       dashboard: dash,
       users
@@ -142,42 +145,38 @@
   }
 
   const methods = {
-  async loginBootstrap(username, password, date) {
-  const c = mustDb();
+    async loginBootstrap(username, password, date) {
+      const c = mustDb();
+      const loginEmail = emailFor(username);
+      if (!loginEmail) throw new Error('กรุณาระบุ Username หรือ Email');
+      if (!String(password || '')) throw new Error('กรุณาระบุ Password');
 
-  const loginEmail = emailFor(username);
+      console.log('Login email:', loginEmail);
+      const { data, error } = await c.auth.signInWithPassword({
+        email: loginEmail,
+        password: String(password || '')
+      });
 
-  console.log('Login email:', loginEmail);
+      if (error || !data?.user) {
+        console.error('Supabase Login Error:', {
+          email: loginEmail,
+          code: error?.code,
+          message: error?.message,
+          status: error?.status
+        });
+        if (error?.code === 'email_not_confirmed') throw new Error('Email ยังไม่ได้รับการยืนยัน');
+        if (error?.code === 'invalid_credentials') throw new Error('Email หรือ Password ไม่ถูกต้อง');
+        throw new Error(error?.message || 'เข้าสู่ระบบไม่สำเร็จ');
+      }
 
-  const { data, error } = await c.auth.signInWithPassword({
-    email: loginEmail,
-    password: String(password || '')
-  });
+      const { error: upErr } = await c
+        .from('profiles')
+        .update({ last_login: new Date().toISOString() })
+        .eq('id', data.user.id);
+      if (upErr) console.warn('last_login update:', upErr.message);
 
-  if (error || !data?.user) {
-    console.error('Supabase Login Error:', {
-      email: loginEmail,
-      code: error?.code,
-      message: error?.message,
-      status: error?.status
-    });
-
-    throw new Error(
-      error?.message || 'Username หรือ Password ไม่ถูกต้อง'
-    );
-  }
-
-  const { error: upErr } = await c
-    .from('profiles')
-    .update({ last_login: new Date().toISOString() })
-    .eq('id', data.user.id);
-
-  if (upErr) {
-    console.warn('last_login update:', upErr.message);
-  }
-
-  return bootstrap(date);
-}
+      return bootstrap(date);
+    },
 
     async getBootstrapData(_token, date) {
       return bootstrap(date);
@@ -195,6 +194,7 @@
 
     async saveTransaction(_token, p) {
       const c = mustDb();
+      await sessionUser();
       const x = {
         tx_date: p.date,
         tx_type: p.type,
@@ -202,6 +202,8 @@
         weight_kg: Number(p.weight),
         pieces: p.type === 'sale' ? Number(p.pieces) : null
       };
+
+      if (!x.tx_date) throw new Error('กรุณาระบุวันที่');
       if (!(x.weight_kg > 0)) throw new Error('กรุณาระบุน้ำหนัก');
       if (!['receive', 'sale'].includes(x.tx_type)) throw new Error('ประเภทรายการไม่ถูกต้อง');
       if (x.tx_type === 'sale' && (!Number.isInteger(x.pieces) || x.pieces <= 0)) {
@@ -212,14 +214,15 @@
       if (p.editId) {
         q = c.from('transactions').update(x).eq('id', p.editId).is('deleted_at', null);
       } else {
-        q = c.from('transactions').insert({ id: p.requestId, ...x });
+        const insertData = { ...x };
+        if (p.requestId) insertData.id = p.requestId;
+        q = c.from('transactions').insert(insertData);
       }
+
       const { error } = await q;
-      if (error) {
-        if (String(error.code) === '23505') {
-          // requestId ซ้ำ = เคยบันทึกแล้ว ป้องกัน double submit
-        } else throw err(error);
-      }
+      if (error && String(error.code) !== '23505') throw err(error);
+      if (error && String(error.code) === '23505') console.warn('Duplicate transaction prevented:', p.requestId);
+
       return {
         ok: true,
         message: p.editId ? 'แก้ไขข้อมูลเรียบร้อย' : 'บันทึกข้อมูลเรียบร้อย',
@@ -229,6 +232,7 @@
 
     async deleteTransaction(_token, id, date) {
       const c = mustDb();
+      await sessionUser();
       const { error } = await c
         .from('transactions')
         .update({ deleted_at: new Date().toISOString() })
@@ -249,30 +253,47 @@
     },
 
     async resetUserPassword(_token, username, password) {
+      if (String(password || '').length < 8) throw new Error('Password ต้องอย่างน้อย 8 ตัวอักษร');
       const r = await invokeAdmin('resetPassword', { username, password });
       return { ok: true, message: r.message || 'Reset Password เรียบร้อย' };
     },
 
     async changeMyPassword(_token, currentPwd, newPwd) {
-      if (String(newPwd || '').length < 8) throw new Error('Password ต้องอย่างน้อย 8 ตัวอักษร');
-      const me = await profile();
+      if (String(newPwd || '').length < 8) throw new Error('Password ใหม่ต้องอย่างน้อย 8 ตัวอักษร');
+
+      // ตรวจ profile เพื่อยืนยันว่าบัญชียัง active
+      await profile();
       const c = mustDb();
+      const { authUser } = await sessionUser();
+      const currentEmail = authUser.email;
+      if (!currentEmail) throw new Error('ไม่พบ Email ของบัญชีปัจจุบัน');
+
       const { error: authErr } = await c.auth.signInWithPassword({
-        email: emailFor(me.username),
+        email: currentEmail,
         password: String(currentPwd || '')
       });
       if (authErr) throw new Error('รหัสผ่านปัจจุบันไม่ถูกต้อง');
+
       const { error } = await c.auth.updateUser({ password: String(newPwd) });
       if (error) throw err(error);
+      await c.auth.signOut();
       return { ok: true, message: 'เปลี่ยนรหัสผ่านแล้ว กรุณา Login ใหม่' };
     }
   };
 
   window.RubberAPI = {
     client: db,
+    emailFor,
     async call(name, ...args) {
       if (!methods[name]) throw new Error(`ไม่รองรับคำสั่ง ${name}`);
-      return methods[name](...args);
+      try {
+        return await methods[name](...args);
+      } catch (e) {
+        console.error(`RubberAPI.${name}:`, e);
+        throw e;
+      }
     }
   };
+
+  console.log(`Rubber V7 API loaded - ${cfg.VERSION || '7.1.0'}`);
 })();
