@@ -1,3 +1,4 @@
+
 (() => {
   'use strict';
 
@@ -15,7 +16,19 @@
       })
     : null;
 
-  const emailFor = username => `${String(username || '').trim().toLowerCase()}@${cfg.AUTH_DOMAIN || 'rubber.local'}`;
+  const emailFor = input => {
+  const value = String(input || '').trim().toLowerCase();
+
+  if (!value) return '';
+
+  // ถ้ากรอก Gmail เต็มมาแล้ว ให้ใช้เลย
+  if (value.includes('jacsohit@')) {
+    return value;
+  }
+
+  // ถ้ากรอกเฉพาะ username จึงค่อยเติม domain
+  return `${value}@${cfg.AUTH_DOMAIN || 'gmail.com'}`;
+};
   const err = e => new Error(e?.message || String(e || 'Unknown error'));
 
   function mustDb() {
